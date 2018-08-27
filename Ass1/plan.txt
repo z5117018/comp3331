@@ -1,0 +1,59 @@
+loop (forever) {
+    switch(event)
+        event: data received from application above (LastByteSent - LastByteAcked < MWS then add more to list of things to send)
+            create TCP segment with sequence number NextSeqNum
+            if (timer currently not running)
+                start timer
+            pass segment to IP
+            NextSeqNum=NextSeqNum+length(data)
+            break;
+        event: timer timeout (socket time out)
+            retransmit not-yet-acknowledged segment with
+            smallest sequence number
+            start timer
+            break;
+        event: ACK received, with ACK field value of y (socket recv)
+            if (y > SendBase) {
+                SendBase=y
+                if (there are currently any not-yet-acknowledged segments)
+                    start timer
+            }
+            else { /* a duplicate ACK for already ACKed 
+                    segment */
+                increment number of duplicate ACKs
+                    received for y
+                if (number of duplicate ACKS received
+                    for y==3)
+                    /* TCP fast retransmit */
+                    resend segment with sequence number y
+            }
+
+        break;
+} /* end of loop forever */
+
+send base = oldest unacknowledged seq number
+send base - 1 = last byte that was acknowledged and ordered correctly
+
+Server:
+loop (forever) {
+    Can receive upto MWS messages at a time
+    Have seq_num ack_num
+    seq_num = message number of what im sending 
+    ack_num = message number of what I expect to receive next
+    if received message's seq_num != ack_num this means something went wrong.
+        send reply for expected ack 
+    else 
+        need to extract payload here and also create a buffer if out of order 
+        ack = message's seq_num + 1 
+        increment seq_num 
+}
+
+Acknowledge correctly received packets whether or not they are in order. 
+out of order packets are buffered until missing packets are received at which 
+point a batch of packets are delivered to the upper layer
+
+Sender:
+Send packet, if ACK received equals send_base (oldest unacknowledged packet), 
+shift the window to the seq_num + 1
+
+Receiver:
