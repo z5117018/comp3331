@@ -5,6 +5,7 @@ import random
 from collections import deque
 import time
 import sys
+import _thread
 
 class Sender:
 # Drop packets
@@ -71,7 +72,7 @@ class Sender:
                 recv = self.stp_rcv(4096) # Receive after ack 
                 break
 
-    def stp_send(self,header=None,payload=None, retransmission=False):
+    def stp_send(self,header=None,payload=None, retransmission=False,delay=0):
         # If only header, user knows what type of header they're sending
         if payload is None:
             msg = Stp_msg(header=header)
@@ -84,6 +85,7 @@ class Sender:
             if random.uniform(0,1) < self.p_drop:
                 print("dropping packet")
                 return
+        time.sleep(delay)
         self.socket.send(msg.to_bits())
 
     def stp_rcv(self,buf):    
@@ -140,11 +142,13 @@ class Sender:
             # SEND BASE IS THE BASE OF THE MWS WINDOW b 
             # print("last sent is {} and send_base is {}".format(self.last_sent,self.send_base))
             if (self.last_sent - self.send_base < self.MWS and self.last_sent < len(self.payloads)):
+                print("last sent is {} and send_base is {}".format(self.last_sent,self.send_base))
                 # print("next")
                 payload = self.payloads[self.last_sent]
                 header = Header(self.seq_num,0,len(payload))
                 print("sending seq_num",self.seq_num)
-                self.stp_send(header,payload)
+                _thread.start_new_thread(self.stp_send, (header, payload, False,random.uniform(0.5,2)) )
+                # self.stp_send(header,payload)
                 # print("incrementing")
                 self.last_sent += 1
             # self.seq_num += len(payload)
@@ -156,11 +160,8 @@ class Sender:
                 print("header ack num is {}".format(header.ack_num))
                 if (header.ack_num == self.final_seq_num):
                     break
-                # break
-                # payload = reply.payload
-                if (header.ack_num >= send_base_seq_num):
-                    # print("ASDASD")
-                    # sys.exit()
+                if (header.ack_num > send_base_seq_num):
+
                     
                     self.send_base += int((header.ack_num - send_base_seq_num)/self.MSS)
                     send_base_seq_num = header.ack_num
@@ -174,16 +175,17 @@ class Sender:
                         # send_time = int(round(time.time()*1000))
                         # self.start_timer = True
                         # start timer
-                else:
+                elif (header.ack_num <= send_base_seq_num):
                     print("in else")
                     # break
                     
                     num_duplicates += 1
                     if (num_duplicates == 3):
                         print("fast retransmission")
+                        # break
                         payload = self.payloads[self.send_base]
-                        header = Header(self.seq_num,0,len(payload))
-                        self.stp_send(header,payload)
+                        header = Header(send_base_seq_num,0,len(payload))
+                        self.stp_send(header,payload,retransmission=True)
                         num_duplicates = 0
 
             except socket.timeout:

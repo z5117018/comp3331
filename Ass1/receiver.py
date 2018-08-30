@@ -67,13 +67,7 @@ class Receiver:
                 else:
                     # self.recv_base = next_seq
                     break           
-            # sys.exit()  
-            # for msg in self.msg_buffer:
-            #     if (next_seq == msg.header.seq_num):
-            #         payload = self.msg_buffer.popleft().payload
-            #         f.write(payload)
-            #         self.ack_num += msg.header.payload_len
-            #     next_seq = msg.header.seq_num + msg.header.payload_len
+
         else:
             # print(message.payload)
             f.write(message.payload)
@@ -84,17 +78,9 @@ class Receiver:
 if __name__ == "__main__":    
     f = open("copy22.pdf","w+") 
     receiver = Receiver(11200,'file')
-    # arr = []
-    size = 0
     while True:
         message, address = receiver.socket.recvfrom(4096)
-        # size = 311 - sys.getsizeof(message)
-        # print(size)
-        # if(size == 0 or size == 99):
-        #     continue
-        # else:
-        #     break
-        size += 1
+
         if message is not None:
             recv_header = from_bits(message).header
             
