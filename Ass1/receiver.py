@@ -9,7 +9,9 @@ class Receiver:
         self.state = States.CLOSED
         # self.seq_num = random.randint(0,120000)
         # self.seq_num = random.randint(0,MAX_SEQ)
-        self.ack_num = None
+        self.ack_num = 0
+
+        self.recv_base = self.ack_num
 
         self.receiver_port = receiver_port
         self.file_r = file_r
@@ -61,8 +63,9 @@ class Receiver:
                     self.ack_num += msg.header.payload_len   
                     next_seq = msg.header.seq_num + msg.header.payload_len
                 else:
+                    # self.recv_base = next_seq
                     break           
-            sys.exit()  
+            # sys.exit()  
             # for msg in self.msg_buffer:
             #     if (next_seq == msg.header.seq_num):
             #         payload = self.msg_buffer.popleft().payload
@@ -70,14 +73,14 @@ class Receiver:
             #         self.ack_num += msg.header.payload_len
             #     next_seq = msg.header.seq_num + msg.header.payload_len
         else:
-            print(message.payload)
+            # print(message.payload)
             f.write(message.payload)
             self.ack_num += message.header.payload_len
             # print("new acknum",self.ack_num)
         
 
 if __name__ == "__main__":    
-    f = open("copy21.pdf","w+") 
+    f = open("copy22.pdf","w+") 
     receiver = Receiver(11200,'file')
     # arr = []
     size = 0
@@ -107,31 +110,17 @@ if __name__ == "__main__":
                 print("connection established",receiver.ack_num)
             else:
                 message = from_bits(message)
-                
-                # print("message leng", message.header.payload_len)
-                
-                # arr.append(len(message.payload))
-                # print(arr)
-                # print([(y-x)%99 for x,y in zip(sorted(arr),sorted(arr[1:]))])
+                print("Received seqnum is {} and my ack num is {}".format(message.header.seq_num,receiver.ack_num))
                 if message.header.seq_num == receiver.ack_num:
-                    # self.acknum += message.header.payload_len
-                    # print("here")
-                    # print(message)
                     receiver.stp_write(message,f)
-                    # Write all payloads 
-                else:
-                    # print("in else")
-                    # print(message)
+                    header = Header(0,message.header.seq_num,0,0,0,0,1,0,0)
+                elif message.header.seq_num > receiver.ack_num: # ack num is the most recently acknowledged seq num. ignore if seq_num < ack_num as this is a received retransmission
+                    print("appending to buffer")
                     receiver.msg_buffer.append(message)
-                    # print("len is",len(receiver.msg_buffer))
-                    # Don't increment acknum
-                receiver.ack_num += message.header.payload_len
-                print("seq_num: {} ack_num: {}".format(message.header.seq_num,receiver.ack_num))
-                header = Header(0,receiver.ack_num,0,0,0,0,1,0,0)
-                print(size)
-                # if (message is not None):
-                    # f = open("copy1.pdf","w+") 
-                    # f.write(from_bits(message).payload.decode('iso-8859-1'))
+                    bubbleSort(receiver.msg_buffer)
+                    header = Header(0,receiver.ack_num,0,0,0,0,1,0,0)
+
+                
             receiver.stp_send(address=address,header=header)
     f.close()
 # (self, seq_num=0, ack_num=0, payload_len=0, checksum=0, mss=0, mws=0,ack=0, syn=0, fin=0):

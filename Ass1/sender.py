@@ -10,9 +10,9 @@ class Sender:
 
     def __init__(self, receiver_host_ip, receiver_port, file, MWS, MSS, gamma):
         self.state = States.CLOSED
-        self.seq_num = random.randint(0,MAX_SEQ)
+        # self.seq_num = random.randint(0,MAX_SEQ)
+        self.seq_num = 0
         # self.sent_unacked = 0
-        self.last_acked = -1
         self.last_sent = 0
         self.send_base = 0
         # self.ack_num = None
@@ -43,10 +43,8 @@ class Sender:
                 
                 self.stp_send(header=header)
                 self.seq_num += 1
-                # self.socket.send(header.to_bits())
                 self.state = States.SYN_SENT
             elif self.state == States.SYN_SENT:
-                # recv_header = from_bits(self.socket.recv(4096))
                 recv = self.stp_rcv(4096)
                 print("recv is ",recv.header)
                 recv_header = recv.header
@@ -55,11 +53,8 @@ class Sender:
                     self.state = States.ESTABLISHED
             elif self.state == States.ESTABLISHED:
                 header = Header(self.seq_num,0,0,0,0,0,1,0,0)
-                print("ack is ",header.ack)
-                print("After handshake, seq_num is", self.seq_num)
                 self.stp_send(header=header)
                 self.seq_num += 1
-                print("After handshake, seq_num is", self.seq_num)
                 recv = self.stp_rcv(4096) # Receive after ack 
                 break
 
@@ -67,15 +62,10 @@ class Sender:
         # If only header, user knows what type of header they're sending
         if payload is None:
             msg = Stp_msg(header=header)
-            # print("none payload")
         # If only payload, we need to wrap this in a header
         else:
-            # increment
-            self.seq_num += len(payload)
-            
+            self.seq_num = header.seq_num + len(payload)
             msg = Stp_msg(header,payload)
-        print("new seq_num",msg.header.seq_num)
-        # print("sent",len(payload))
         self.socket.send(msg.to_bits())
 
     def stp_rcv(self,buf):    
@@ -121,32 +111,35 @@ class Sender:
     def send_payloads(self):
         num_duplicates = 0
         size = 0
-        while(self.last_sent < len(self.payloads)):
-            # print("SIZE IS ",len(self.payloads))
-            # if (self.last_sent - self.last_acked) <= self.MWS:
+        send_base_seq_num = self.seq_num
+        while(self.last_sent < len(self.payloads) and self.last_sent - self.send_base < self.MWS):
+
             payload = self.payloads[self.last_sent]
             header = Header(self.seq_num,0,len(payload))
             # if (self.timer.start_timer is False):
                 # self.timer.start_timer = True
                 # send_time = int(round(time.time()*1000))
+            # print("LEN OF PAYLOAD",len(payload))
+            # SEND BASE IS THE BASE OF THE MWS WINDOW
+           
             self.stp_send(header,payload)
-            
             self.last_sent += 1
-            send_base_seq_num = self.seq_num - (self.last_sent - self.send_base)*self.MSS
-            self.seq_num += len(payload)
+            # self.seq_num += len(payload)
             try:
                 reply,address = self.socket.recvfrom(self.receiver_port)
                 print(sys.getsizeof(reply))
                 reply_time = int(round(time.time()*1000))
 
                 header = from_bits(reply).header
-                print("seq num is {} header ack num is {} send base seq num is {}".format(self.seq_num,header.ack_num,send_base_seq_num),header.ack_num >= send_base_seq_num)
+                print("header ack num is {}".format(header.ack_num))
                 # break
                 # payload = reply.payload
                 if (header.ack_num >= send_base_seq_num):
                     # print("ASDASD")
                     # sys.exit()
-                    self.send_base += (header.ack_num - send_base_seq_num)/self.MSS
+                    
+                    self.send_base += int((header.ack_num - send_base_seq_num)/self.MSS)
+                    send_base_seq_num = header.ack_num
                     # self.send_base = header.ack_num
                     # rtt = (reply_time - send_time)
                     # self.timer.calc_timeout(rtt)
@@ -158,20 +151,20 @@ class Sender:
                         # self.start_timer = True
                         # start timer
                 else:
-                    # print("in else")
+                    print("in else")
                     # break
                     
                     num_duplicates += 1
                     if (num_duplicates == 3):
                         print("fast retransmission")
-                        # print("send base seq num is ",send_base_seq_num)
                         payload = self.payloads[self.send_base]
                         header = Header(self.seq_num,0,len(payload))
                         self.stp_send(header,payload)
                         num_duplicates = 0
 
             except socket.timeout:
-
+                print("timeed out, retransmitting seq_num {}".format(send_base_seq_num))
+                # sys.exit()
                 payload = self.payloads[self.send_base]
                 header = Header(send_base_seq_num,0,len(payload))
                 send_time = int(round(time.time()*1000))
@@ -216,7 +209,7 @@ class Sender:
 # }
 
 if __name__ == "__main__":
-    sender = Sender('127.0.0.1',11200,'test0.pdf',99,99,4)
+    sender = Sender('127.0.0.1',11200,'test0.pdf',5,99,4)
     # sender.send_file()
     sender.send_payloads()
     # print(sender.seq_num)

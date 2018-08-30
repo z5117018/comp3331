@@ -1,8 +1,8 @@
 from enum import Enum
 import socket
+from functools import total_ordering
 
-
-MAX_SEQ = 65535
+MAX_SEQ = 4294967295
 
 def from_bits(stp_msg):
         seq_num = int(stp_msg[0:32],2)
@@ -31,6 +31,21 @@ def chunkstring(string, length):
 class States(Enum):
     CLOSED, SYN_SENT, ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2, TIME_WAIT, LISTEN, SYN_RCVD, CLOSE_WAIT, LAST_ACK = range(0,10)
 
+def bubbleSort(arr):
+    n = len(arr)
+ 
+    # Traverse through all array elements
+    for i in range(n):
+ 
+        # Last i elements are already in place
+        for j in range(0, n-i-1):
+ 
+            # traverse the array from 0 to n-i-1
+            # Swap if the element found is greater
+            # than the next element
+            if arr[j] > arr[j+1] :
+                arr[j], arr[j+1] = arr[j+1], arr[j]
+
 class Header:
     def __init__(self, seq_num=0, ack_num=0, payload_len=0, checksum=0, mss=0, mws=0,ack=0, syn=0, fin=0):
         self.seq_num = seq_num
@@ -56,6 +71,7 @@ class Header:
         return bits.encode()
     # Convert from bits to header object when receiving
 
+@total_ordering
 class Stp_msg:
     def __init__(self,header,payload=None):
         self.header = header
@@ -66,6 +82,11 @@ class Stp_msg:
         else:
             # print('appended is ',self.header.to_bits()+self.payload)
             return self.header.to_bits()+self.payload
+    def __lt__(self, other):
+        return self.header.seq_num < other.header.seq_num
+
+    def __eq__(self, other):
+        return self.header.seq_num == other.header.seq_num
 
 if __name__ =="__main__":
     header = Header(100,100,0,1,1,1)
