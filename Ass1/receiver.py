@@ -57,7 +57,7 @@ class Receiver:
                 # break
                 msg = self.msg_buffer[0]
                 if (next_seq == msg.header.seq_num):
-                    
+                    print("if statement")
                     payload = self.msg_buffer.popleft().payload
                     f.write(payload)
                     self.ack_num += msg.header.payload_len   
@@ -113,7 +113,7 @@ if __name__ == "__main__":
                 print("Received seqnum is {} and my ack num is {}".format(message.header.seq_num,receiver.ack_num))
                 if message.header.seq_num == receiver.ack_num:
                     receiver.stp_write(message,f)
-                    header = Header(0,message.header.seq_num,0,0,0,0,1,0,0)
+                    header = Header(0,receiver.ack_num,0,0,0,0,1,0,0)
                 elif message.header.seq_num > receiver.ack_num: # ack num is the most recently acknowledged seq num. ignore if seq_num < ack_num as this is a received retransmission
                     print("appending to buffer")
                     receiver.msg_buffer.append(message)

@@ -7,7 +7,11 @@ import time
 import sys
 
 class Sender:
-
+# Drop packets
+# • Duplicate packets
+# • Create bit errors within packets (a single bit error)
+# • Transmits out of order packets
+# • Delays packets
     def __init__(self, receiver_host_ip, receiver_port, file, MWS, MSS, gamma):
         self.state = States.CLOSED
         # self.seq_num = random.randint(0,MAX_SEQ)
@@ -22,6 +26,7 @@ class Sender:
         self.MWS = MWS
         self.MSS = MSS
         self.gamma = gamma
+        self.p_drop = 0.5
         self.payloads = self.create_payloads()
         self.socket = None
         self.timer = Timer()
@@ -58,14 +63,19 @@ class Sender:
                 recv = self.stp_rcv(4096) # Receive after ack 
                 break
 
-    def stp_send(self,header=None,payload=None):
+    def stp_send(self,header=None,payload=None, retransmission=False):
         # If only header, user knows what type of header they're sending
         if payload is None:
             msg = Stp_msg(header=header)
         # If only payload, we need to wrap this in a header
         else:
-            self.seq_num = header.seq_num + len(payload)
+            print("Sending last_sent is {} seq_num {}".format(self.last_sent,header.seq_num))
             msg = Stp_msg(header,payload)
+            if not retransmission:
+                self.seq_num = header.seq_num + len(payload)
+            if random.uniform(0,1) < self.p_drop:
+                print("dropping packet")
+                return
         self.socket.send(msg.to_bits())
 
     def stp_rcv(self,buf):    
@@ -112,18 +122,23 @@ class Sender:
         num_duplicates = 0
         size = 0
         send_base_seq_num = self.seq_num
-        while(self.last_sent < len(self.payloads) and self.last_sent - self.send_base < self.MWS):
+        while(self.last_sent < len(self.payloads)):
+           
 
-            payload = self.payloads[self.last_sent]
-            header = Header(self.seq_num,0,len(payload))
             # if (self.timer.start_timer is False):
                 # self.timer.start_timer = True
                 # send_time = int(round(time.time()*1000))
             # print("LEN OF PAYLOAD",len(payload))
-            # SEND BASE IS THE BASE OF THE MWS WINDOW
-           
-            self.stp_send(header,payload)
-            self.last_sent += 1
+            # SEND BASE IS THE BASE OF THE MWS WINDOW b 
+            # print("last sent is {} and send_base is {}".format(self.last_sent,self.send_base))
+            if (self.last_sent - self.send_base < self.MWS):
+                # print("next")
+                payload = self.payloads[self.last_sent]
+                header = Header(self.seq_num,0,len(payload))
+                print("sending seq_num",self.seq_num)
+                self.stp_send(header,payload)
+                # print("incrementing")
+                self.last_sent += 1
             # self.seq_num += len(payload)
             try:
                 reply,address = self.socket.recvfrom(self.receiver_port)
@@ -168,7 +183,8 @@ class Sender:
                 payload = self.payloads[self.send_base]
                 header = Header(send_base_seq_num,0,len(payload))
                 send_time = int(round(time.time()*1000))
-                self.stp_send(header,payload)
+                self.stp_send(header,payload,retransmission=True)
+                
                         # retransmit not-yet-acknowledged segment with
                             # smallest sequence number 
                         # start timer
