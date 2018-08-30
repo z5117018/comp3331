@@ -49,15 +49,17 @@ class Receiver:
     def stp_write(self,message,f):
 
         if len(self.msg_buffer) > 0:
-            # print("herererere")
-            # sys.exit()
-            next_seq = self.msg_buffer[0].header.seq_num
+            print("INSIDE WhiLE LOOP SEQ NUM IS {} ACK is {}".format(message.header.seq_num,self.ack_num))
+            # Need to write current message and then loop through buffer
+            next_seq = message.header.seq_num + message.header.payload_len
+            f.write(message.payload)
+            self.ack_num += message.header.payload_len
             while self.msg_buffer:
-                print("INSIDE WhiLE LOOP SEQ NUM IS ",next_seq)
+                
                 # break
                 msg = self.msg_buffer[0]
                 if (next_seq == msg.header.seq_num):
-                    print("if statement")
+                    print("inside if statement, message header sequence number is {}".format(msg.header.seq_num))
                     payload = self.msg_buffer.popleft().payload
                     f.write(payload)
                     self.ack_num += msg.header.payload_len   

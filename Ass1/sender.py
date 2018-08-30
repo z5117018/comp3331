@@ -22,6 +22,7 @@ class Sender:
         # self.ack_num = None
         self.receiver_host_ip = receiver_host_ip
         self.receiver_port = receiver_port
+
         self.file = file
         self.MWS = MWS
         self.MSS = MSS
@@ -32,6 +33,7 @@ class Sender:
         self.timer = Timer()
         print("starting seq_num",self.seq_num)
         self.handshake()
+        self.final_seq_num = self.seq_num + self.calc_total_payload()
 
 
     def init_udp(self):
@@ -39,6 +41,12 @@ class Sender:
         self.socket.connect((self.receiver_host_ip,self.receiver_port))
         self.socket.settimeout(self.timer.timeout)
         # self.socket.settimeout(1)
+
+    def calc_total_payload(self):
+        sum = 0
+        for p in self.payloads:
+            sum += len(p)
+        return sum
 
     def handshake(self): # send SYS, receive SYS+ACK, send ACK
         self.init_udp()
@@ -122,8 +130,8 @@ class Sender:
         num_duplicates = 0
         size = 0
         send_base_seq_num = self.seq_num
-        while(self.last_sent < len(self.payloads)):
-           
+        while(True):
+            print("seq num is {} final is {}".format(self.seq_num,self.final_seq_num))
 
             # if (self.timer.start_timer is False):
                 # self.timer.start_timer = True
@@ -131,7 +139,7 @@ class Sender:
             # print("LEN OF PAYLOAD",len(payload))
             # SEND BASE IS THE BASE OF THE MWS WINDOW b 
             # print("last sent is {} and send_base is {}".format(self.last_sent,self.send_base))
-            if (self.last_sent - self.send_base < self.MWS):
+            if (self.last_sent - self.send_base < self.MWS and self.last_sent < len(self.payloads)):
                 # print("next")
                 payload = self.payloads[self.last_sent]
                 header = Header(self.seq_num,0,len(payload))
@@ -142,11 +150,12 @@ class Sender:
             # self.seq_num += len(payload)
             try:
                 reply,address = self.socket.recvfrom(self.receiver_port)
-                print(sys.getsizeof(reply))
                 reply_time = int(round(time.time()*1000))
 
                 header = from_bits(reply).header
                 print("header ack num is {}".format(header.ack_num))
+                if (header.ack_num == self.final_seq_num):
+                    break
                 # break
                 # payload = reply.payload
                 if (header.ack_num >= send_base_seq_num):
