@@ -15,5 +15,6 @@ class Timer:
 
     def calc_timeout(self,sample_rtt):
         self.calc_est_rtt(sample_rtt)
-        self.dev_rtt(sample_rtt)
+        self.calc_dev_rtt(sample_rtt)
         self.timeout = self.est_rtt + 4*self.dev_rtt
+        return self.timeout

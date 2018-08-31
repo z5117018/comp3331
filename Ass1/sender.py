@@ -15,14 +15,14 @@ class Sender:
 # • Delays packets
 # pDrop
 # pDuplicate pCorrupt pOrder maxOrder pDelay maxDelay seed
-    def __init__(self, receiver_host_ip, receiver_port, file, MWS, MSS, gamma):
+    def __init__(self, receiver_host_ip, receiver_port, file, MWS, 
+                MSS, gamma, p_drop, p_duplicate, p_corrupt, p_order, 
+                max_order, p_delay, max_delay, seed):
         self.state = States.CLOSED
         # self.seq_num = random.randint(0,MAX_SEQ)
         self.seq_num = 0
-        # self.sent_unacked = 0
         self.last_sent = 0
         self.send_base = 0
-        # self.ack_num = None
         self.receiver_host_ip = receiver_host_ip
         self.receiver_port = receiver_port
 
@@ -30,14 +30,14 @@ class Sender:
         self.MWS = MWS
         self.MSS = MSS
         self.gamma = gamma
-        self.p_drop = 0.5
-        self.p_duplicate = 0.5
-        self.p_corrupt = 0.5
-        self.p_order = 0.5
-        self.max_order = 4 # How many packets p_order should wait before sending
-        self.p_delay = 0.5
+        self.p_drop = p_drop
+        self.p_duplicate = p_duplicate
+        self.p_corrupt = p_corrupt
+        self.p_order = p_order
+        self.max_order = max_order # How many packets p_order should wait before sending
+        self.p_delay = p_delay
         self.max_delay = 2 # max delay is 2 seconds
-        self.seed = 1000
+        self.seed = seed
         self.held_segment = []
         
         self.payloads = self.create_payloads()
@@ -96,37 +96,28 @@ class Sender:
             msg = Stp_msg(header,payload)
             if not retransmission:
                 self.seq_num = header.seq_num + len(payload)
-            # if r < self.p_drop:
-            #     print("dropping packet")
-            #     return
-            # elif r < self.p_duplicate:
-            #     self.socket.send(msg.to_bits()) # send once now so it will send again after the conditionals
-            # elif r < self.p_corrupt:
-            #     print("flipping bit")
-            #     flipped = ''
-            #     for i in range(0, len(payload)):
-            #         if i == 0:
-            #             flipped += chr((ord(payload.decode('iso-8859-1')[i]) ^ 1))
-            #         else:
-            #             flipped += payload.decode('iso-8859-1')[i]
-            #     msg = Stp_msg(header,flipped.encode('iso-8859-1'))
+            if r < self.p_drop:
+                print("dropping packet")
+                return
+            elif r < self.p_duplicate:
+                self.socket.send(msg.to_bits()) # send once now so it will send again after the conditionals
+            elif r < self.p_corrupt:
+                flipped = flip_bit(payload)
+                msg = Stp_msg(header,flipped)
             # elif r < self.p_order:
-            if r < self.p_order and len(self.held_segment) == 0:
-                print("Holding back segment", msg.header.seq_num)
-                self.held_segment.append(msg)
-                return -1
+            # if r < self.p_order and len(self.held_segment) == 0:
+            #     print("Holding back segment", msg.header.seq_num)
+            #     self.held_segment.append(msg)
+            #     return -1
                 
 
                 # next
-            # elif r < self.p_delay:
-                # time.sleep(random.uniform(0,self.max_delay))
+            elif r < self.p_delay:
+                time.sleep(random.uniform(0,self.max_delay))
         self.socket.send(msg.to_bits())
-        return 1
-
 
     def stp_rcv(self,buf):    
         msg = from_bits(self.socket.recv(buf))
-        # self.ack_num = msg.header.seq_num + 1
         return msg
 
     def create_payloads(self):
@@ -145,24 +136,6 @@ class Sender:
             size += 1
             print(size)
 
-            # print("ASDa")
-        #    (self, seq_num=0, ack_num=0, payload_len=0, checksum=0, mss=0, mws=0,ack=0, syn=0, fin=0): 
-    # Need to break up file into MSS sizes
-
-    # def send_msg(self):
-    #     if self.state == States.ESTABLISHED:
-
-    # Cannot send data packets unless connection established
-
-    # def udp_send(self,msg):
-    #     client_socket.send(msg)
-
-    # def udp_recv(self,buffer):
-    #     return client_socket.recv(buffer)
-
-
-
-
 
     def send_payloads(self):
         num_duplicates = 0
@@ -173,30 +146,28 @@ class Sender:
         while(True):
             print("seq num is {} final is {}".format(self.seq_num,self.final_seq_num))
 
-            # if (self.timer.start_timer is False):
-                # self.timer.start_timer = True
-                # send_time = int(round(time.time()*1000))
-            # print("LEN OF PAYLOAD",len(payload))
-            # SEND BASE IS THE BASE OF THE MWS WINDOW b 
-            # print("last sent is {} and send_base is {}".format(self.last_sent,self.send_base))
+            
             if (self.last_sent - self.send_base < self.MWS and self.last_sent < len(self.payloads)):
-                if (held_count == self.max_order):
-                    msg = self.held_segment.pop()
-                    _thread.start_new_thread(self.stp_send, (msg.header, msg.payload, True) )    
-                    held_count = 0
-                    print("released held back segment",msg.header.seq_num)
-                    continue       
+                # if (held_count == self.max_order):
+                #     msg = self.held_segment.pop()
+                #     _thread.start_new_thread(self.stp_send, (msg.header, msg.payload, True) )    
+                #     held_count = 0
+                #     print("released held back segment",msg.header.seq_num)
+                #     continue       
                 print("last sent is {} and send_base is {}".format(self.last_sent,self.send_base))
                 # print("next")
                 payload = self.payloads[self.last_sent]
                 header = Header(self.seq_num,0,len(payload),checksum(payload.decode('iso-8859-1')))
                 
-                res = _thread.start_new_thread(self.stp_send, (header, payload, False) )
-                if res == -1: # if its a hold back then skip
-                    continue
+                _thread.start_new_thread(self.stp_send, (header, payload, False) )
+                if (self.timer.start_timer is False):
+                    self.timer.start_timer = True
+                    send_time = int(round(time.time()*1000))
+                # if res == -1: # if its a hold back then skip
+                    # continue
                 # self.stp_send(header,payload)
                 # print("incrementing")
-                held_count += 1
+                # held_count += 1
                 self.last_sent += 1
                 # print("sending seq_num",self.seq_num-99, "held", held_count)
             
@@ -204,16 +175,23 @@ class Sender:
             try:
                 reply,address = self.socket.recvfrom(self.receiver_port)
                 reply_time = int(round(time.time()*1000))
-
+                self.timer.start_timer = False
+                rtt = (reply_time - send_time)
+                self.socket.settimeout(self.timer.calc_timeout(rtt))
                 header = from_bits(reply).header
                 print("header ack num is {}".format(header.ack_num))
-                if (header.ack_num == self.final_seq_num):
-                    break
+                 # finish when the ack equals final sequence number
                 if (header.ack_num > send_base_seq_num):
-
-                    
                     self.send_base += int((header.ack_num - send_base_seq_num)/self.MSS)
                     send_base_seq_num = header.ack_num
+                    if (header.ack_num == self.final_seq_num):
+                        break
+                    else:
+                        self.timer.start_timer = True
+                        send_time = int(round(time.time()*1000))   
+                    #                 if (there are currently any not-yet-acknowledged segments)
+#                     start timer 
+#                 }
                     # self.send_base = header.ack_num
                     # rtt = (reply_time - send_time)
                     # self.timer.calc_timeout(rtt)
@@ -224,28 +202,22 @@ class Sender:
                         # send_time = int(round(time.time()*1000))
                         # self.start_timer = True
                         # start timer
-                elif (header.ack_num <= send_base_seq_num):
-                    print("in else")
-                    # break
-                    
+                else:
                     num_duplicates += 1
                     if (num_duplicates == 3):
                         print("fast retransmission")
-                        # break
                         payload = self.payloads[self.send_base]
                         header = Header(send_base_seq_num,0,len(payload),checksum(payload.decode('iso-8859-1')))
                         _thread.start_new_thread(self.stp_send, (header, payload, True) )
-                        # self.stp_send(header,payload,retransmission=True)
                         num_duplicates = 0
 
             except socket.timeout:
                 print("timeed out, retransmitting seq_num {}".format(send_base_seq_num))
-                # sys.exit()
                 payload = self.payloads[self.send_base]
                 header = Header(send_base_seq_num,0,len(payload),checksum(payload.decode('iso-8859-1')))
                 send_time = int(round(time.time()*1000))
                 _thread.start_new_thread(self.stp_send, (header, payload, True) )
-                # self.stp_send(header,payload,retransmission=True)
+                send_time = int(round(time.time()*1000))
                 
                         # retransmit not-yet-acknowledged segment with
                             # smallest sequence number 
@@ -287,8 +259,6 @@ class Sender:
 # }
 
 if __name__ == "__main__":
-    sender = Sender('127.0.0.1',11200,'test0.pdf',5,99,4)
-    # sender.send_file()
+    sender = Sender('127.0.0.1',11200,'test0.pdf',5,99,4,0.5,0.5,0.5,0.5,5,0.5,2,1000)
     sender.send_payloads()
-    # print(sender.seq_num)
     

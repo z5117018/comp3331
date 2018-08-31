@@ -107,6 +107,16 @@ def bit_sum(payload):
         w = ord(payload[i]) + (ord(payload[i+1]) << 8)
         s = carry_around_add(s, w)
     return s & 0xffff
+
+def flip_bit(payload):
+    flipped = ''
+    for i in range(0, len(payload)):
+        if i == 0:
+            flipped += chr((ord(payload.decode('iso-8859-1')[i]) ^ 1))
+        else:
+            flipped += payload.decode('iso-8859-1')[i]
+    return flipped.encode('iso-8859-1')
+
 if __name__ =="__main__":
     header = Header(100,100,0,1,1,1)
     # new_header = header.from_bits(header.to_bits())

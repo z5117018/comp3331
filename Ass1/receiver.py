@@ -99,9 +99,9 @@ if __name__ == "__main__":
             else:
                 message = from_bits(message)
                 print("Received seqnum is {} and my ack num is {}".format(message.header.seq_num,receiver.ack_num))
+                
                 if (bit_sum(message.payload) + message.header.checksum != 0xffff):
                     print("incorrect check sum, return previous ack.")
-                    # sys.exit()
                     header = Header(0,receiver.ack_num,0,0,0,0,1,0,0)
                     receiver.stp_send(address=address,header=header)
                     continue
@@ -114,8 +114,7 @@ if __name__ == "__main__":
                     receiver.msg_buffer.append(message)
                     bubbleSort(receiver.msg_buffer)
                     header = Header(0,receiver.ack_num,0,0,0,0,1,0,0)
-
-                
+                    
             receiver.stp_send(address=address,header=header)
     f.close()
 # (self, seq_num=0, ack_num=0, payload_len=0, checksum=0, mss=0, mws=0,ack=0, syn=0, fin=0):
