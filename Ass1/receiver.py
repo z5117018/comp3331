@@ -99,6 +99,13 @@ if __name__ == "__main__":
             else:
                 message = from_bits(message)
                 print("Received seqnum is {} and my ack num is {}".format(message.header.seq_num,receiver.ack_num))
+                if (bit_sum(message.payload) + message.header.checksum != 0xffff):
+                    print("incorrect check sum, return previous ack.")
+                    # sys.exit()
+                    header = Header(0,receiver.ack_num,0,0,0,0,1,0,0)
+                    receiver.stp_send(address=address,header=header)
+                    continue
+
                 if message.header.seq_num == receiver.ack_num:
                     receiver.stp_write(message,f)
                     header = Header(0,receiver.ack_num,0,0,0,0,1,0,0)

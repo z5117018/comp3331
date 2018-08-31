@@ -88,6 +88,25 @@ class Stp_msg:
     def __eq__(self, other):
         return self.header.seq_num == other.header.seq_num
 
+def carry_around_add(a, b):
+    c = a + b
+    return (c & 0xffff) + (c >> 16)
+
+def checksum(payload):
+    s = 0
+    # print(len(payload))
+    for i in range(0, len(payload)-1, 2):
+        # print(i)
+        w = ord(payload[i]) + (ord(payload[i+1]) << 8)
+        s = carry_around_add(s, w)
+    return ~s & 0xffff
+
+def bit_sum(payload):
+    s = 0
+    for i in range(0, len(payload)-1, 2):
+        w = ord(payload[i]) + (ord(payload[i+1]) << 8)
+        s = carry_around_add(s, w)
+    return s & 0xffff
 if __name__ =="__main__":
     header = Header(100,100,0,1,1,1)
     # new_header = header.from_bits(header.to_bits())

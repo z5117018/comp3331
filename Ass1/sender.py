@@ -13,6 +13,8 @@ class Sender:
 # • Create bit errors within packets (a single bit error)
 # • Transmits out of order packets
 # • Delays packets
+# pDrop
+# pDuplicate pCorrupt pOrder maxOrder pDelay maxDelay seed
     def __init__(self, receiver_host_ip, receiver_port, file, MWS, MSS, gamma):
         self.state = States.CLOSED
         # self.seq_num = random.randint(0,MAX_SEQ)
@@ -29,6 +31,15 @@ class Sender:
         self.MSS = MSS
         self.gamma = gamma
         self.p_drop = 0.5
+        self.p_duplicate = 0.5
+        self.p_corrupt = 0.5
+        self.p_order = 0.5
+        self.max_order = 4 # How many packets p_order should wait before sending
+        self.p_delay = 0.5
+        self.max_delay = 2 # max delay is 2 seconds
+        self.seed = 1000
+        self.held_segment = []
+        
         self.payloads = self.create_payloads()
         self.socket = None
         self.timer = Timer()
@@ -72,8 +83,11 @@ class Sender:
                 recv = self.stp_rcv(4096) # Receive after ack 
                 break
 
-    def stp_send(self,header=None,payload=None, retransmission=False,delay=0):
+
+
+    def stp_send(self,header=None,payload=None, retransmission=False):
         # If only header, user knows what type of header they're sending
+        r = random.uniform(0,1)
         if payload is None:
             msg = Stp_msg(header=header)
         # If only payload, we need to wrap this in a header
@@ -82,11 +96,33 @@ class Sender:
             msg = Stp_msg(header,payload)
             if not retransmission:
                 self.seq_num = header.seq_num + len(payload)
-            if random.uniform(0,1) < self.p_drop:
-                print("dropping packet")
-                return
-        time.sleep(delay)
+            # if r < self.p_drop:
+            #     print("dropping packet")
+            #     return
+            # elif r < self.p_duplicate:
+            #     self.socket.send(msg.to_bits()) # send once now so it will send again after the conditionals
+            # elif r < self.p_corrupt:
+            #     print("flipping bit")
+            #     flipped = ''
+            #     for i in range(0, len(payload)):
+            #         if i == 0:
+            #             flipped += chr((ord(payload.decode('iso-8859-1')[i]) ^ 1))
+            #         else:
+            #             flipped += payload.decode('iso-8859-1')[i]
+            #     msg = Stp_msg(header,flipped.encode('iso-8859-1'))
+            # elif r < self.p_order:
+            if r < self.p_order and len(self.held_segment) == 0:
+                print("Holding back segment", msg.header.seq_num)
+                self.held_segment.append(msg)
+                return -1
+                
+
+                # next
+            # elif r < self.p_delay:
+                # time.sleep(random.uniform(0,self.max_delay))
         self.socket.send(msg.to_bits())
+        return 1
+
 
     def stp_rcv(self,buf):    
         msg = from_bits(self.socket.recv(buf))
@@ -132,6 +168,8 @@ class Sender:
         num_duplicates = 0
         size = 0
         send_base_seq_num = self.seq_num
+        held_count = 0
+
         while(True):
             print("seq num is {} final is {}".format(self.seq_num,self.final_seq_num))
 
@@ -142,15 +180,26 @@ class Sender:
             # SEND BASE IS THE BASE OF THE MWS WINDOW b 
             # print("last sent is {} and send_base is {}".format(self.last_sent,self.send_base))
             if (self.last_sent - self.send_base < self.MWS and self.last_sent < len(self.payloads)):
+                if (held_count == self.max_order):
+                    msg = self.held_segment.pop()
+                    _thread.start_new_thread(self.stp_send, (msg.header, msg.payload, True) )    
+                    held_count = 0
+                    print("released held back segment",msg.header.seq_num)
+                    continue       
                 print("last sent is {} and send_base is {}".format(self.last_sent,self.send_base))
                 # print("next")
                 payload = self.payloads[self.last_sent]
-                header = Header(self.seq_num,0,len(payload))
-                print("sending seq_num",self.seq_num)
-                _thread.start_new_thread(self.stp_send, (header, payload, False,random.uniform(0.5,2)) )
+                header = Header(self.seq_num,0,len(payload),checksum(payload.decode('iso-8859-1')))
+                
+                res = _thread.start_new_thread(self.stp_send, (header, payload, False) )
+                if res == -1: # if its a hold back then skip
+                    continue
                 # self.stp_send(header,payload)
                 # print("incrementing")
+                held_count += 1
                 self.last_sent += 1
+                # print("sending seq_num",self.seq_num-99, "held", held_count)
+            
             # self.seq_num += len(payload)
             try:
                 reply,address = self.socket.recvfrom(self.receiver_port)
@@ -184,17 +233,19 @@ class Sender:
                         print("fast retransmission")
                         # break
                         payload = self.payloads[self.send_base]
-                        header = Header(send_base_seq_num,0,len(payload))
-                        self.stp_send(header,payload,retransmission=True)
+                        header = Header(send_base_seq_num,0,len(payload),checksum(payload.decode('iso-8859-1')))
+                        _thread.start_new_thread(self.stp_send, (header, payload, True) )
+                        # self.stp_send(header,payload,retransmission=True)
                         num_duplicates = 0
 
             except socket.timeout:
                 print("timeed out, retransmitting seq_num {}".format(send_base_seq_num))
                 # sys.exit()
                 payload = self.payloads[self.send_base]
-                header = Header(send_base_seq_num,0,len(payload))
+                header = Header(send_base_seq_num,0,len(payload),checksum(payload.decode('iso-8859-1')))
                 send_time = int(round(time.time()*1000))
-                self.stp_send(header,payload,retransmission=True)
+                _thread.start_new_thread(self.stp_send, (header, payload, True) )
+                # self.stp_send(header,payload,retransmission=True)
                 
                         # retransmit not-yet-acknowledged segment with
                             # smallest sequence number 
