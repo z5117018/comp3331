@@ -29,7 +29,7 @@ def from_bits(stp_msg):
 def chunkstring(string, length):
     return (string[0+i:length+i] for i in range(0, len(string), length))
 class States(Enum):
-    CLOSED, SYN_SENT, ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2, TIME_WAIT, LISTEN, SYN_RCVD, CLOSE_WAIT, LAST_ACK = range(0,10)
+    CLOSED, SYN_SENT, ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2, TIME_WAIT, LISTEN, SYN_RCVD, LAST_ACK = range(0,9)
 
 def bubbleSort(arr):
     n = len(arr)

@@ -84,8 +84,7 @@ if __name__ == "__main__":
         if message is not None:
             recv_header = from_bits(message).header
             
-            if recv_header.syn:
-                
+            if recv_header.syn: 
                 # receiver.seq_num += 1
                 receiver.ack_num = recv_header.seq_num + 1
                 header = Header(0,receiver.ack_num,0,0,0,0,1,1,0)
@@ -96,6 +95,10 @@ if __name__ == "__main__":
                 receiver.ack_num = recv_header.seq_num + 1
                 header = Header(0,receiver.ack_num,0,0)
                 print("connection established",receiver.ack_num)
+            elif recv_header.fin:
+                print("connection closed")
+                receiver.ack_num = recv_header.seq_num + 1
+                header = Header(0,receiver.ack_num,0,0,0,0,1,0,0)
             else:
                 message = from_bits(message)
                 print("Received seqnum is {} and my ack num is {}".format(message.header.seq_num,receiver.ack_num))
@@ -114,7 +117,7 @@ if __name__ == "__main__":
                     receiver.msg_buffer.append(message)
                     bubbleSort(receiver.msg_buffer)
                     header = Header(0,receiver.ack_num,0,0,0,0,1,0,0)
-                    
+            print("Sending reply for ",receiver.ack_num)        
             receiver.stp_send(address=address,header=header)
     f.close()
 # (self, seq_num=0, ack_num=0, payload_len=0, checksum=0, mss=0, mws=0,ack=0, syn=0, fin=0):
